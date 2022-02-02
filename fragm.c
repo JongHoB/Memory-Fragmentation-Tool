@@ -150,9 +150,7 @@ static int fragment_memory(int order, int dentries)
 				break;
 			}
 
-			count = info.freeram *
-				(PAGE_SIZE << (order - PAGE_SIZE)) /
-				(PAGE_SIZE << order);
+			count = info.freeram * PAGE_SIZE / (PAGE_SIZE << order);
 
 			/* struct dentry is ~192 bytes large*/
 			count /= 192;
