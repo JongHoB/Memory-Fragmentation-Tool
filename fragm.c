@@ -1,235 +1,231 @@
-#include <fcntl.h>
+// This code is based on the code from ingens/programs/micro/frag_severe.c
+//  Written by Youngjin Kwon
+
+// Modified by Jongho Baik
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <unistd.h>
 #include <string.h>
 #include <sys/mman.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
 #include <sys/types.h>
-#include <unistd.h>
+#include <sys/time.h>
+#include <signal.h>
+#include <err.h>
+#include <fcntl.h>
 
-#define MAX_ORDER 11
-#define PAGE_SIZE 4096
-#define SZ_GB (1UL << 30)
+#define CHUNK (24 << 20)
+typedef unsigned int uint32_t;
 
-#define min(a, b)               \
-	({                          \
-		__typeof__(a) _a = (a); \
-		__typeof__(b) _b = (b); \
-		_a < _b ? _a : _b;      \
-	})
-
-static int print_buddyinfo(void)
+void usage(const char *prog, FILE *out)
 {
-	char buf[4 * PAGE_SIZE] = {0};
-	int ret, off, fd, i;
-	ssize_t len;
-	unsigned long nr[MAX_ORDER] = {0};
-	unsigned long total = 0, cumulative = 0;
-
-	fd = open("/proc/buddyinfo", O_RDONLY);
-	if (fd < 0)
-	{
-		perror("open");
-		return -1;
-	}
-
-	len = read(fd, buf, sizeof(buf));
-	if (len <= 0)
-	{
-		perror("read");
-		close(fd);
-		return -1;
-	}
-
-	off = 0;
-	while (off < len)
-	{
-		int node;
-		char __node[64], __zone[64], zone[64];
-		unsigned long n[MAX_ORDER];
-		int parsed;
-
-		ret = sscanf(buf + off, "%s %d, %s %s %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu\n%n",
-					 __node, &node, __zone, zone, &n[0], &n[1], &n[2], &n[3], &n[4], &n[5], &n[6],
-					 &n[7], &n[8], &n[9], &n[10], &parsed);
-		// printf("%d %s %lu %lu %lu\n", node, zone, n[0], n[1], n[10]);
-		if (ret < 15)
-			break;
-
-		off += parsed;
-
-		for (i = 0; i < MAX_ORDER; i++)
-			nr[i] += n[i];
-	}
-
-	for (i = 0; i < MAX_ORDER; i++)
-		total += (PAGE_SIZE << i) * nr[i];
-
-	printf("%-4s%10s%10s%10s%10s\n", "Order", "Pages", "Total", "%Free", "%Higher");
-	for (i = 0; i < MAX_ORDER; i++)
-	{
-		unsigned long bytes = (PAGE_SIZE << i) * nr[i];
-
-		cumulative += bytes;
-
-		printf("%-4d %10lu %7.2lfGB %8.1lf%% %8.1lf%%\n", i, nr[i],
-			   (double)bytes / SZ_GB,
-			   (double)bytes / total * 100,
-			   (double)(total - cumulative) / total * 100);
-	}
-
-	close(fd);
-	return 0;
+	fprintf(out, "usage: %s allocsize\n", prog);
+	fprintf(out, " allocsize is kbytes, or number[KMGP] (P = pages)\n");
+	exit(out == stderr);
 }
 
-// Caculate Compaction Score
-
-static int fragment_memory(int order, int compaction_score, int report)
+void usr_handler(int signal)
 {
-	struct sysinfo info;
-	size_t off = 0, size, mmap_size, i;
-	char *area;
-	int ret = 0;
-
-	ret = sysinfo(&info);
-	if (ret)
-	{
-		perror("sysinfo");
-		return -1;
-	}
-
-	print_buddyinfo();
-FRAG:
-	printf("Before : Total %.1lf GB, Free %.1lf GB\n", (double)info.totalram / SZ_GB,
-		   (double)info.freeram / SZ_GB);
-
-	// 10GB allocation per 24GB TOTAL RAM Size
-	mmap_size = (size_t)(info.totalram / 24) * 10;
-
-	// mmap size must be multiple of 2^n
-	// it must be page aligned
-	mmap_size = (mmap_size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-
-	area = mmap(NULL, mmap_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-
-	printf("mmap_size = %lf GB\n", (double)mmap_size / SZ_GB);
-	printf("After allocation : Total %.1lf GB, Free %.1lf GB\n", (double)info.totalram / SZ_GB,
-		   (double)info.freeram / SZ_GB);
-	printf("Fragmenting memory...\n");
-
-	if (area == MAP_FAILED)
-	{
-		perror("mmap");
-		return -1;
-	}
-
-	off = 0;
-	while (1)
-	{
-		ret = sysinfo(&info);
-		if (ret)
-		{
-			perror("sysinfo");
-			break;
-		}
-
-		if (info.freeram <= mmap_size)
-		{
-			printf("Not enough free memory\n");
-			munmap(area, mmap_size);
-			goto FRAG;
-		}
-
-		// allocate 2^order size
-		size = (1 << order) * PAGE_SIZE;
-
-		// 1. Populate the memory
-		for (i = off; i < min(off + size, mmap_size); i += PAGE_SIZE)
-		{
-			*(area + i) = 0;
-		}
-
-		// 2. Fragment the memory with 2^order size
-		// Free 1~2^order-1 pages from 0~2^order-1 pages
-		for (i = off + PAGE_SIZE; i < min(off + size, mmap_size); i += (1 << order) * PAGE_SIZE - PAGE_SIZE)
-		{
-			ret = madvise(area + i, (1 << order) * PAGE_SIZE - PAGE_SIZE, MADV_DONTNEED);
-			if (ret)
-			{
-				perror("madvise");
-				return -1;
-			}
-			// printf("Free %u bytes\n", (PAGE_SIZE << order) - PAGE_SIZE);
-			// printf("Fragmenting....Free Ram = %lu\n", info.freeram);
-		}
-
-		off = min(off + size, mmap_size);
-		if (off >= mmap_size)
-		{
-			printf("off = %lu, mmap_size = %lu\n", off, mmap_size);
-			goto FRAG;
-		}
-	}
-
-	return 0;
+	printf("catch signal\n");
+	exit(-1);
 }
 
-int main(int argc, char **argv)
+uint32_t size_tbl[] = {
+	4 << 10,
+	8 << 10,
+	16 << 10,
+	32 << 10,
+	64 << 10,
+	128 << 10,
+	256 << 10,
+	512 << 10,
+	1024 << 10};
+
+static uint32_t random_range(uint32_t a, uint32_t b)
 {
-	int compaction_score = 0, report = 0, order;
+	uint32_t v;
+	uint32_t range;
+	uint32_t upper;
+	uint32_t lower;
+	uint32_t mask;
 
-	if (argc < 2)
-		goto bad_args;
-
-	if (strcmp(argv[1], "-s") == 0)
+	if (a == b)
 	{
-		print_buddyinfo();
-		return EXIT_SUCCESS;
+		return a;
 	}
-	else if (strcmp(argv[1], "-f") == 0)
-	{
-		switch (argc)
-		{
-		case 7:
-			report = atoi(argv[6]);
-			if (report < 0 || report > 1)
-			{
-				fprintf(stderr, "Report must be 0 or 1\n");
-				return EXIT_FAILURE;
-			}
-		case 5:
-			compaction_score = atoi(argv[4]);
-			if (compaction_score < 0 || compaction_score > 100)
-			{
-				fprintf(stderr, "Compaction score must be in [0; 100] range\n");
-				return EXIT_FAILURE;
-			}
-		case 3:
-			order = atoi(argv[2]);
-			if (order < 1 || order > 20)
-			{
-				fprintf(stderr, "Order must be in [1; 20] range\n");
-				return EXIT_FAILURE;
-			}
-			break;
-		default:
-			goto bad_args;
-		}
 
-		fragment_memory(order, compaction_score, report);
+	if (a > b)
+	{
+		upper = a;
+		lower = b;
 	}
 	else
 	{
-		goto bad_args;
+		upper = b;
+		lower = a;
 	}
 
-	return EXIT_SUCCESS;
+	range = upper - lower;
 
-bad_args:
-	fprintf(stderr,
-			"Usage:\n"
-			"    Fragment memory: -f <order> -s <compaction_score threshold> -r <report:0 or 1>\n"
-			"    Show stats:      -s\n");
-	return EXIT_FAILURE;
+	mask = 0;
+	// XXX calculate range with log and mask? nah, too lazy :).
+	while (1)
+	{
+		if (mask >= range)
+		{
+			break;
+		}
+		mask = (mask << 1) | 1;
+	}
+
+	while (1)
+	{
+		v = rand() & mask;
+		if (v <= range)
+		{
+			return lower + v;
+		}
+	}
+}
+
+int main(int argc, char *argv[])
+{
+	long long kbtotal = 0;
+	int i, j, numchunk, compaction = 0, use_huge = 1;
+	int fd;
+	unsigned int free_size;
+	void **data;
+	sigset_t set;
+	struct sigaction sa;
+
+	printf("%s\n", argv[1]);
+
+	if (argc >= 2)
+	{
+		char *end = NULL;
+		/* BOF??? */
+		kbtotal = strtoull(argv[1], &end, 0);
+
+		switch (*end)
+		{
+		case 'g':
+		case 'G':
+			kbtotal *= 1024;
+		case 'm':
+		case 'M':
+			kbtotal *= 1024;
+		case '\0':
+		case 'k':
+		case 'K':
+			kbtotal *= 1024;
+			break;
+		case 'p':
+		case 'P':
+			kbtotal *= 4;
+			break;
+		default:
+			usage(argv[0], stderr);
+			break;
+		}
+	}
+
+	if (argc < 2 || kbtotal == 0)
+		usage(argv[0], stderr);
+
+	if (argc >= 3)
+		use_huge = atoi(argv[2]);
+
+	if (argc >= 4)
+		compaction = atoi(argv[3]);
+
+	if (use_huge)
+		printf("Use huge page\n");
+	else
+		printf("Do not use huge page\n");
+
+	if (compaction)
+		printf("do compaction\n");
+	else
+		printf("Do not compact memory\n");
+
+	numchunk = kbtotal / CHUNK;
+	printf("allocate %llx memory,  numchunk = %d\n", kbtotal, numchunk);
+	data = mmap(0, sizeof(void *) * numchunk,
+				PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+
+	sa.sa_flags = 0;
+	sa.sa_handler = usr_handler;
+
+	if (sigaction(SIGUSR1, &sa, NULL) == -1)
+		errx(1, "sigaction");
+
+	sigemptyset(&set);
+	sigaddset(&set, SIGUSR1);
+
+retry:
+	printf("allocate memory\n");
+	for (i = 0; i < numchunk; i++)
+	{
+		data[i] = mmap(NULL, CHUNK, PROT_READ | PROT_WRITE,
+					   MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+
+		if (!data[i])
+		{
+			perror("alloc\n");
+		}
+
+		if (use_huge)
+		{
+			if (madvise(data[i], CHUNK, MADV_HUGEPAGE) < 0)
+			{
+				perror("error");
+				exit(-1);
+			}
+		}
+		else
+		{
+			if (madvise(data[i], CHUNK, MADV_NOHUGEPAGE) < 0)
+			{
+				perror("error");
+				exit(-1);
+			}
+		}
+
+		memset(data[i], 1, CHUNK);
+
+		// for (j = 2, offset = 0; offset < CHUNK; j++) {
+		for (j = 0; j < CHUNK; j += (1 << 20))
+		{
+			free_size = size_tbl[random_range(0, 8)];
+			// printf("%x, %lx\n", j, free_size);
+			// munmap(data[i] + j, free_size);
+			madvise(data[i] + j, free_size, MADV_DONTNEED);
+		}
+	}
+
+	// printf("pausing\n");
+	// pause();
+	// sigwaitinfo(&set, NULL);
+
+	usleep(100000);
+	if (compaction)
+	{
+		printf("compaction\n");
+		fd = open("/proc/sys/vm/compact_memory", O_WRONLY);
+		if (fd < 0)
+			errx(1, "cannot open file");
+
+		if (write(fd, "1", 2) < 0)
+			errx(1, "cannot write file");
+
+		close(fd);
+	}
+	sleep(5);
+
+	printf("retry\n");
+	for (i = 0; i < numchunk; i++)
+		munmap(data[i], CHUNK);
+
+	goto retry;
 }
