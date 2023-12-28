@@ -113,7 +113,7 @@ FRAG:
 
 	area = mmap(NULL, mmap_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
-	printf("mmap_size = %.lf\n", (double)mmap_size / SZ_GB);
+	printf("mmap_size = %lf GB\n", (double)mmap_size / SZ_GB);
 	printf("After allocation : Total %.1lf GB, Free %.1lf GB\n", (double)info.totalram / SZ_GB,
 		   (double)info.freeram / SZ_GB);
 	printf("Fragmenting memory...\n");
