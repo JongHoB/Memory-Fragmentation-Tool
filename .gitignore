@@ -6,4 +6,5 @@ fragm
 *.mod*
 modules*
 .mod*
-.o
+*.o*
+Module*
