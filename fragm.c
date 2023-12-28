@@ -105,7 +105,7 @@ FRAG:
 		   (double)info.freeram / SZ_GB);
 
 	// 10GB allocation per 24GB TOTAL RAM Size
-	mmap_size = (size_t)info.totalram * 10 / 24;
+	mmap_size = (size_t)(info.totalram/24)*10;
 
 	// mmap size must be multiple of 2^n
 	// it must be page aligned
@@ -113,7 +113,7 @@ FRAG:
 
 	area = mmap(NULL, mmap_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
-	printf("mmap_size = %.lf\n", mmap_size / SZ_GB);
+	printf("mmap_size = %.lf\n", (double)mmap_size / SZ_GB);
 	printf("After allocation : Total %.1lf GB, Free %.1lf GB\n", (double)info.totalram / SZ_GB,
 		   (double)info.freeram / SZ_GB);
 	printf("Fragmenting memory...\n");
