@@ -152,31 +152,44 @@ int create_fragments(void)
   struct page *page;
   int next;
   int i;
-  int chk = 0;
+
+  // set the start time
+  unsigned long start_time = jiffies;
+
   compaction_score_t score;
   while ((page = alloc_pages(GFP_KERNEL, order)))
   {
     split_page(page, order);
     list_add(&page->lru, &fragment_list);
     for (next = 1; next < (1 << order); next++)
-      __free_page(page + next);
-    if (compaction_score > 0 && compaction_score < 100)
     {
-      score = get_compaction_score();
-      i = 0;
-      while (i < score.total_node)
+      __free_page(page + next);
+
+      // Check the compaction score of the system
+      // get_compaction_score() is run every 500ms from the start time
+      // If the compaction score is higher than the compaction score parameter,
+      // then stop the fragmenter
+      if (compaction_score > 0 && compaction_score < 100)
       {
-        if (score.score[i] >= compaction_score)
+        if ((jiffies - start_time) * 1000 / HZ >= 1000)
         {
-          printk(KERN_INFO "Compaction Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
-          printk(KERN_INFO "Compaction Score is larger than %d, so stop the Fragmenter\n", compaction_score);
-          chk = 1;
-          break;
+          score = get_compaction_score();
+          printk(KERN_INFO "Compaction Score: %d Node : %d in Kernel", score.score[0], score.node[0]);
+          i = 0;
+          while (i < score.total_node)
+          {
+            if (score.score[i] >= compaction_score)
+            {
+              printk(KERN_INFO "Compaction Score is larger than %d, so stop the Fragmenter\n", compaction_score);
+              printk(KERN_INFO "Compaction Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
+              return 0;
+            }
+            i++;
+          }
+          start_time = jiffies;
         }
       }
     }
-    if (chk == 1)
-      break;
   }
   return 0;
 }
