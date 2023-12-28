@@ -105,7 +105,7 @@ FRAG:
 		   (double)info.freeram / SZ_GB);
 
 	// 10GB allocation per 24GB TOTAL RAM Size
-	mmap_size = (size_t)(info.totalram/24)*10;
+	mmap_size = (size_t)(info.totalram / 24) * 10;
 
 	// mmap size must be multiple of 2^n
 	// it must be page aligned
@@ -141,32 +141,33 @@ FRAG:
 			goto FRAG;
 		}
 
-		size = (size_t)1 << order;
+		// allocate 2^order size
+		size = (1 << order) * PAGE_SIZE;
 
 		// 1. Populate the memory
 		for (i = off; i < min(off + size, mmap_size); i += PAGE_SIZE)
 		{
-			*(volatile char *)(area + i) = 0;
+			*(area + i) = 0;
 		}
 
 		// 2. Fragment the memory with 2^order size
 		// Free 1~2^order-1 pages from 0~2^order-1 pages
-		for (i = off + PAGE_SIZE; i < min(off + size, mmap_size); i += PAGE_SIZE << order)
+		for (i = off + PAGE_SIZE; i < min(off + size, mmap_size); i += (1 << order) * PAGE_SIZE - PAGE_SIZE)
 		{
-			ret = madvise(area + i, (PAGE_SIZE << order) - PAGE_SIZE, MADV_DONTNEED);
+			ret = madvise(area + i, (1 << order) * PAGE_SIZE - PAGE_SIZE, MADV_DONTNEED);
 			if (ret)
 			{
 				perror("madvise");
 				return -1;
 			}
-			printf("Free %u bytes", (PAGE_SIZE << order) - PAGE_SIZE);
-			printf("Fragmenting....Free Ram = %lu\n", info.freeram);
+			// printf("Free %u bytes\n", (PAGE_SIZE << order) - PAGE_SIZE);
+			// printf("Fragmenting....Free Ram = %lu\n", info.freeram);
 		}
 
-		off += size;
+		off = min(off + size, mmap_size);
 		if (off >= mmap_size)
 		{
-			munmap(area, mmap_size);
+			printf("off = %lu, mmap_size = %lu\n", off, mmap_size);
 			goto FRAG;
 		}
 	}
