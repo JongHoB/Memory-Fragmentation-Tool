@@ -1,1 +1,0 @@
-cmd_/root/Memory-Fragmentation-Tool/kernel_module/phymem_fragmenter.ko := ld -r -EL  -maarch64elf -z noexecstack --build-id=sha1  -T scripts/module.lds -o /root/Memory-Fragmentation-Tool/kernel_module/phymem_fragmenter.ko /root/Memory-Fragmentation-Tool/kernel_module/phymem_fragmenter.o /root/Memory-Fragmentation-Tool/kernel_module/phymem_fragmenter.mod.o;  true
