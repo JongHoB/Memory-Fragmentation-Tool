@@ -1,7 +1,6 @@
 // This code is from saravan2/phymem_fragmenter
 // Modified by Jongho Baik
 
-#include <linux/gfp.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
@@ -10,11 +9,9 @@
 #include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/vmstat.h>
-#include <linux/mmzone.h>
 
 #define COMPACTION_HPAGE_ORDER 9
-// #define MAX_ORDER 10
-
+#define MAXIMUM_ORDER 10
 static int order;
 static int compaction_score;
 module_param(order, int, 0);
@@ -62,7 +59,7 @@ static void fill_contig_page_info(struct zone *zone,
   info->free_blocks_total = 0;
   info->free_blocks_suitable = 0;
 
-  for (order = 0; order <= MAX_ORDER; order++)
+  for (order = 0; order <= MAXIMUM_ORDER; order++)
   {
     unsigned long blocks;
 
@@ -147,8 +144,33 @@ compaction_score_t get_compaction_score(void)
   return score;
 }
 
+void score_printer(void)
+{
+  compaction_score_t score;
+  int i = 0;
+  unsigned long start_time = jiffies;
+
+  // Print the compaction score of the system every 5000ms
+  while (1)
+  {
+    if ((jiffies - start_time) * 1000 / HZ >= 5000)
+    {
+      score = get_compaction_score();
+      i = 0;
+      while (i < score.total_node)
+      {
+        printk(KERN_INFO "STATUS - Compaction Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
+        i++;
+      }
+      start_time = jiffies;
+    }
+  }
+}
+
 int create_fragments(void)
 {
+  compaction_score_t score;
+  struct sysinfo si;
   struct page *page;
   int next;
   int i;
@@ -156,38 +178,55 @@ int create_fragments(void)
   // set the start time
   unsigned long start_time = jiffies;
 
-  compaction_score_t score;
+  i = 0;
+  score = get_compaction_score();
+  while (i < score.total_node)
+  {
+    printk(KERN_INFO "Initial Compaction Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
+    i++;
+  }
+
+  // Allocate pages and split them
+  // Maximum allocation would be 80% of the total memory
   while ((page = alloc_pages(GFP_KERNEL, order)))
   {
+    // check the memory usage
+    // if the memory usage is over 80%, then stop the fragmenter
+    si_meminfo(&si);
+    if (si.freeram * 100 / si.totalram < 20)
+    {
+      printk(KERN_INFO "Memory usage is over 80%%, so stop the Fragmenter\n");
+      return 0;
+    }
     split_page(page, order);
     list_add(&page->lru, &fragment_list);
     for (next = 1; next < (1 << order); next++)
     {
       __free_page(page + next);
+    }
 
-      // Check the compaction score of the system
-      // get_compaction_score() is run every 500ms from the start time
-      // If the compaction score is higher than the compaction score parameter,
-      // then stop the fragmenter
-      if (compaction_score > 0 && compaction_score < 100)
+    // Check the compaction score of the system
+    // get_compaction_score() is run every 500ms from the start time
+    // If the compaction score is higher than the compaction score parameter,
+    // then stop the fragmenter
+    if (compaction_score > 0 && compaction_score < 100)
+    {
+      if ((jiffies - start_time) * 1000 / HZ >= 500)
       {
-        if ((jiffies - start_time) * 1000 / HZ >= 1000)
+        score = get_compaction_score();
+
+        i = 0;
+        while (i < score.total_node)
         {
-          score = get_compaction_score();
-          printk(KERN_INFO "Compaction Score: %d Node : %d in Kernel", score.score[0], score.node[0]);
-          i = 0;
-          while (i < score.total_node)
-          {
-            if (score.score[i] >= compaction_score)
-            {
-              printk(KERN_INFO "Compaction Score is larger than %d, so stop the Fragmenter\n", compaction_score);
-              printk(KERN_INFO "Compaction Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
-              return 0;
-            }
-            i++;
-          }
-          start_time = jiffies;
+          printk(KERN_INFO "STATUS: Compaction Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
+          // if (score.score[i] >= compaction_score)
+          // {
+          //   printk(KERN_INFO "Compaction Score is larger than %d, so stop the Fragmenter\n", compaction_score);
+          //   score_printer();
+          // }
+          i++;
         }
+        start_time = jiffies;
       }
     }
   }
