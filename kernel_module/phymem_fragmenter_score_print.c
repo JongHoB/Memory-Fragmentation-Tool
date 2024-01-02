@@ -217,12 +217,13 @@ int create_fragments(void)
 
         i = 0;
         while (i < score.total_node)
-        { 
-          if (score.score[i] >= compaction_score)
-           {
-             printk(KERN_INFO "Compaction Score is larger than %d, so stop the Fragmenter\n", compaction_score);
-	     return 0;
-           }
+        {
+          printk(KERN_INFO "STATUS: Compaction Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
+          // if (score.score[i] >= compaction_score)
+          // {
+          //   printk(KERN_INFO "Compaction Score is larger than %d, so stop the Fragmenter\n", compaction_score);
+          //   score_printer();
+          // }
           i++;
         }
         start_time = jiffies;
