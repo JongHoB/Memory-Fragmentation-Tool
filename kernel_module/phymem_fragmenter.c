@@ -9,6 +9,8 @@
 #include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/vmstat.h>
+#include <linux/timer.h>
+#include <linux/delay.h>
 
 #define COMPACTION_HPAGE_ORDER 9
 #define MAXIMUM_ORDER 10
@@ -148,13 +150,12 @@ void score_printer(void)
 {
   compaction_score_t score;
   int i = 0;
-  unsigned long start_time = jiffies;
+ // unsigned long start_time = jiffies;
 
   // Print the compaction score of the system every 5000ms
   while (1)
   {
-    if ((jiffies - start_time) * 1000 / HZ >= 5000)
-    {
+      msleep_interruptible(500);
       score = get_compaction_score();
       i = 0;
       while (i < score.total_node)
@@ -162,8 +163,7 @@ void score_printer(void)
         printk(KERN_INFO "STATUS - Compaction Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
         i++;
       }
-      start_time = jiffies;
-    }
+    
   }
 }
 
@@ -188,7 +188,7 @@ int create_fragments(void)
 
   // Allocate pages and split them
   // Maximum allocation would be 80% of the total memory
-  while ((page = alloc_pages(GFP_KERNEL, order)))
+  while ((page = alloc_pages_node(0,GFP_KERNEL|__GFP_MOVABLE, order)))
   {
     // check the memory usage
     // if the memory usage is over 80%, then stop the fragmenter
@@ -245,8 +245,14 @@ int fragmenter_init(void)
     printk(KERN_INFO "Invalid compaction score value\n");
     return -1;
   }
-  printk(KERN_INFO "Starting fragmenter\n");
-  create_fragments();
+  if(order!=0){
+
+    printk(KERN_INFO "Starting fragmenter\n");
+    create_fragments();
+  }
+  else{
+	  score_printer();
+  }
   return 0;
 }
 
