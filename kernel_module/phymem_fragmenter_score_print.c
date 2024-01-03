@@ -11,11 +11,16 @@
 #include <linux/vmstat.h>
 #include <linux/timer.h>
 #include <linux/delay.h>
+#include <linux/kthread.h>
+#include <linux/signal.h>
+#include <linux/sched/signal.h>
 
 #define COMPACTION_HPAGE_ORDER 9
 #define MAXIMUM_ORDER 10
 static int order;
 static int compaction_score;
+static struct task_struct * task=NULL;
+
 module_param(order, int, 0);
 MODULE_PARM_DESC(order, "Order of the page to allocate and fragment");
 
@@ -146,16 +151,20 @@ compaction_score_t get_compaction_score(void)
   return score;
 }
 
-void score_printer(void)
+int score_printer(void * arg)
 {
   compaction_score_t score;
   int i = 0;
  // unsigned long start_time = jiffies;
 
   // Print the compaction score of the system every 5000ms
+  allow_signal(SIGUSR1);
   while (1)
   {
       msleep_interruptible(500);
+      if(kthread_should_stop()){
+	      break;
+      }
       score = get_compaction_score();
       i = 0;
       while (i < score.total_node)
@@ -165,6 +174,7 @@ void score_printer(void)
       }
     
   }
+  return 0;
 }
 
 int create_fragments(void)
@@ -251,7 +261,7 @@ int fragmenter_init(void)
     create_fragments();
   }
   else{
-	  score_printer();
+	  task=kthread_run(score_printer,NULL,"score_printer kthread run");
   }
   return 0;
 }
@@ -268,9 +278,12 @@ int release_fragments(void)
 
 void fragmenter_exit(void)
 {
-  printk(KERN_INFO "Releasing all fragments\n");
-  release_fragments();
-  printk(KERN_INFO "Released all fragments\n");
+  printk(KERN_INFO "Releasing score_printer()\n");
+  if(task){
+	 send_sig(SIGUSR1,task,0);
+	 kthread_stop(task);
+  } 
+  printk(KERN_INFO "Released score_printer()\n");
 }
 
 module_init(fragmenter_init);
