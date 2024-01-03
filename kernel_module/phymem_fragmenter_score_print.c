@@ -15,11 +15,23 @@
 #include <linux/signal.h>
 #include <linux/sched/signal.h>
 
-#define COMPACTION_HPAGE_ORDER 9
-#define MAXIMUM_ORDER 10
+#if defined CONFIG_TRANSPARENT_HUGEPAGE
+#define COMPACTION_HPAGE_ORDER HPAGE_PMD_ORDER
+#elif defined CONFIG_HUGETLBFS
+#define COMPACTION_HPAGE_ORDER HUGETLB_PAGE_ORDER
+#else
+#define COMPACTION_HPAGE_ORDER (PMD_SHIFT - PAGE_SHIFT)
+#endif
+
+#ifndef CONFIG_FORCE_MAX_ZONEORDER
+#define MAX_ORDER 11
+#else
+#define MAX_ORDER CONFIG_FORCE_MAX_ZONEORDER
+#endif
+
 static int order;
 static int compaction_score;
-static struct task_struct * task=NULL;
+static struct task_struct *task = NULL;
 
 module_param(order, int, 0);
 MODULE_PARM_DESC(order, "Order of the page to allocate and fragment");
@@ -66,7 +78,7 @@ static void fill_contig_page_info(struct zone *zone,
   info->free_blocks_total = 0;
   info->free_blocks_suitable = 0;
 
-  for (order = 0; order <= MAXIMUM_ORDER; order++)
+  for (order = 0; order < MAX_ORDER; order++)
   {
     unsigned long blocks;
 
@@ -151,28 +163,28 @@ compaction_score_t get_compaction_score(void)
   return score;
 }
 
-int score_printer(void * arg)
+int score_printer(void *arg)
 {
   compaction_score_t score;
   int i = 0;
- // unsigned long start_time = jiffies;
+  // unsigned long start_time = jiffies;
 
   // Print the compaction score of the system every 5000ms
   allow_signal(SIGUSR1);
   while (1)
   {
-      msleep_interruptible(500);
-      if(kthread_should_stop()){
-	      break;
-      }
-      score = get_compaction_score();
-      i = 0;
-      while (i < score.total_node)
-      {
-        printk(KERN_INFO "STATUS - Compaction Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
-        i++;
-      }
-    
+    msleep_interruptible(500);
+    if (kthread_should_stop())
+    {
+      break;
+    }
+    score = get_compaction_score();
+    i = 0;
+    while (i < score.total_node)
+    {
+      printk(KERN_INFO "STATUS - Compaction Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
+      i++;
+    }
   }
   return 0;
 }
@@ -198,7 +210,7 @@ int create_fragments(void)
 
   // Allocate pages and split them
   // Maximum allocation would be 80% of the total memory
-  while ((page = alloc_pages_node(0,GFP_KERNEL|__GFP_MOVABLE, order)))
+  while ((page = alloc_pages_node(0, GFP_KERNEL | __GFP_MOVABLE, order)))
   {
     // check the memory usage
     // if the memory usage is over 80%, then stop the fragmenter
@@ -255,13 +267,15 @@ int fragmenter_init(void)
     printk(KERN_INFO "Invalid compaction score value\n");
     return -1;
   }
-  if(order!=0){
+  if (order != 0)
+  {
 
     printk(KERN_INFO "Starting fragmenter\n");
     create_fragments();
   }
-  else{
-	  task=kthread_run(score_printer,NULL,"score_printer kthread run");
+  else
+  {
+    task = kthread_run(score_printer, NULL, "score_printer kthread run");
   }
   return 0;
 }
@@ -279,10 +293,11 @@ int release_fragments(void)
 void fragmenter_exit(void)
 {
   printk(KERN_INFO "Releasing score_printer()\n");
-  if(task){
-	 send_sig(SIGUSR1,task,0);
-	 kthread_stop(task);
-  } 
+  if (task)
+  {
+    send_sig(SIGUSR1, task, 0);
+    kthread_stop(task);
+  }
   printk(KERN_INFO "Released score_printer()\n");
 }
 

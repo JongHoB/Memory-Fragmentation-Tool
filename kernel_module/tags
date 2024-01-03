@@ -1,0 +1,68 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_OUTPUT_EXCMD	mixed	/number, pattern, mixed, or combineV2/
+!_TAG_OUTPUT_FILESEP	slash	/slash or backslash/
+!_TAG_OUTPUT_MODE	u-ctags	/u-ctags or e-ctags/
+!_TAG_PATTERN_LENGTH_LIMIT	96	/0 for no limit/
+!_TAG_PROC_CWD	/root/Memory-Fragmentation-Tool/kernel_module/	//
+!_TAG_PROGRAM_AUTHOR	Universal Ctags Team	//
+!_TAG_PROGRAM_NAME	Universal Ctags	/Derived from Exuberant Ctags/
+!_TAG_PROGRAM_URL	https://ctags.io/	/official site/
+!_TAG_PROGRAM_VERSION	5.9.0	//
+COMPACTION_HPAGE_ORDER	phymem_fragmenter.c	/^#define COMPACTION_HPAGE_ORDER /;"	d	file:
+COMPACTION_HPAGE_ORDER	phymem_fragmenter_score_print.c	/^#define COMPACTION_HPAGE_ORDER /;"	d	file:
+INCLUDE_VERMAGIC	phymem_fragmenter.mod.c	/^#define INCLUDE_VERMAGIC$/;"	d	file:
+INCLUDE_VERMAGIC	phymem_fragmenter_score_print.mod.c	/^#define INCLUDE_VERMAGIC$/;"	d	file:
+KDIR	Makefile	/^KDIR := \/lib\/modules\/$(shell uname -r)\/build$/;"	m
+MAXIMUM_ORDER	phymem_fragmenter.c	/^#define MAXIMUM_ORDER /;"	d	file:
+MAXIMUM_ORDER	phymem_fragmenter_score_print.c	/^#define MAXIMUM_ORDER /;"	d	file:
+____versions	phymem_fragmenter.mod.c	/^static const struct modversion_info ____versions[]$/;"	v	typeref:typename:const struct modversion_info[]__used __section ("__versions")	file:
+____versions	phymem_fragmenter_score_print.mod.c	/^static const struct modversion_info ____versions[]$/;"	v	typeref:typename:const struct modversion_info[]__used __section ("__versions")	file:
+__anon4b9ca1300108	phymem_fragmenter.c	/^{$/;"	s	file:
+__anon783f70d70108	phymem_fragmenter_score_print.c	/^{$/;"	s	file:
+all	Makefile	/^all:$/;"	t
+clean	Makefile	/^clean:$/;"	t
+compaction_score	phymem_fragmenter.c	/^static int compaction_score;$/;"	v	typeref:typename:int	file:
+compaction_score	phymem_fragmenter_score_print.c	/^static int compaction_score;$/;"	v	typeref:typename:int	file:
+compaction_score_t	phymem_fragmenter.c	/^} compaction_score_t;$/;"	t	typeref:struct:__anon4b9ca1300108	file:
+compaction_score_t	phymem_fragmenter_score_print.c	/^} compaction_score_t;$/;"	t	typeref:struct:__anon783f70d70108	file:
+contig_page_info	phymem_fragmenter.c	/^struct contig_page_info$/;"	s	file:
+contig_page_info	phymem_fragmenter_score_print.c	/^struct contig_page_info$/;"	s	file:
+create_fragments	phymem_fragmenter.c	/^int create_fragments(void)$/;"	f	typeref:typename:int
+create_fragments	phymem_fragmenter_score_print.c	/^int create_fragments(void)$/;"	f	typeref:typename:int
+debug	Makefile	/^debug:$/;"	t
+extfrag_for_order	phymem_fragmenter.c	/^unsigned int extfrag_for_order(struct zone *zone, unsigned int order)$/;"	f	typeref:typename:unsigned int
+extfrag_for_order	phymem_fragmenter_score_print.c	/^unsigned int extfrag_for_order(struct zone *zone, unsigned int order)$/;"	f	typeref:typename:unsigned int
+fill_contig_page_info	phymem_fragmenter.c	/^static void fill_contig_page_info(struct zone *zone,$/;"	f	typeref:typename:void	file:
+fill_contig_page_info	phymem_fragmenter_score_print.c	/^static void fill_contig_page_info(struct zone *zone,$/;"	f	typeref:typename:void	file:
+fragmentation_score_node	phymem_fragmenter.c	/^static unsigned int fragmentation_score_node(pg_data_t *pgdat)$/;"	f	typeref:typename:unsigned int	file:
+fragmentation_score_node	phymem_fragmenter_score_print.c	/^static unsigned int fragmentation_score_node(pg_data_t *pgdat)$/;"	f	typeref:typename:unsigned int	file:
+fragmentation_score_zone	phymem_fragmenter.c	/^static unsigned int fragmentation_score_zone(struct zone *zone)$/;"	f	typeref:typename:unsigned int	file:
+fragmentation_score_zone	phymem_fragmenter_score_print.c	/^static unsigned int fragmentation_score_zone(struct zone *zone)$/;"	f	typeref:typename:unsigned int	file:
+fragmentation_score_zone_weighted	phymem_fragmenter.c	/^static unsigned int fragmentation_score_zone_weighted(struct zone *zone)$/;"	f	typeref:typename:unsigned int	file:
+fragmentation_score_zone_weighted	phymem_fragmenter_score_print.c	/^static unsigned int fragmentation_score_zone_weighted(struct zone *zone)$/;"	f	typeref:typename:unsigned int	file:
+fragmenter_exit	phymem_fragmenter.c	/^void fragmenter_exit(void)$/;"	f	typeref:typename:void
+fragmenter_exit	phymem_fragmenter_score_print.c	/^void fragmenter_exit(void)$/;"	f	typeref:typename:void
+fragmenter_init	phymem_fragmenter.c	/^int fragmenter_init(void)$/;"	f	typeref:typename:int
+fragmenter_init	phymem_fragmenter_score_print.c	/^int fragmenter_init(void)$/;"	f	typeref:typename:int
+free_blocks_suitable	phymem_fragmenter.c	/^  unsigned long free_blocks_suitable;$/;"	m	struct:contig_page_info	typeref:typename:unsigned long	file:
+free_blocks_suitable	phymem_fragmenter_score_print.c	/^  unsigned long free_blocks_suitable;$/;"	m	struct:contig_page_info	typeref:typename:unsigned long	file:
+free_blocks_total	phymem_fragmenter.c	/^  unsigned long free_blocks_total;$/;"	m	struct:contig_page_info	typeref:typename:unsigned long	file:
+free_blocks_total	phymem_fragmenter_score_print.c	/^  unsigned long free_blocks_total;$/;"	m	struct:contig_page_info	typeref:typename:unsigned long	file:
+free_pages	phymem_fragmenter.c	/^  unsigned long free_pages;$/;"	m	struct:contig_page_info	typeref:typename:unsigned long	file:
+free_pages	phymem_fragmenter_score_print.c	/^  unsigned long free_pages;$/;"	m	struct:contig_page_info	typeref:typename:unsigned long	file:
+get_compaction_score	phymem_fragmenter.c	/^compaction_score_t get_compaction_score(void)$/;"	f	typeref:typename:compaction_score_t
+get_compaction_score	phymem_fragmenter_score_print.c	/^compaction_score_t get_compaction_score(void)$/;"	f	typeref:typename:compaction_score_t
+node	phymem_fragmenter.c	/^  int node[2];$/;"	m	struct:__anon4b9ca1300108	typeref:typename:int[2]	file:
+node	phymem_fragmenter_score_print.c	/^  int node[2];$/;"	m	struct:__anon783f70d70108	typeref:typename:int[2]	file:
+order	phymem_fragmenter.c	/^static int order;$/;"	v	typeref:typename:int	file:
+order	phymem_fragmenter_score_print.c	/^static int order;$/;"	v	typeref:typename:int	file:
+release_fragments	phymem_fragmenter.c	/^int release_fragments(void)$/;"	f	typeref:typename:int
+release_fragments	phymem_fragmenter_score_print.c	/^int release_fragments(void)$/;"	f	typeref:typename:int
+score	phymem_fragmenter.c	/^  int score[2];$/;"	m	struct:__anon4b9ca1300108	typeref:typename:int[2]	file:
+score	phymem_fragmenter_score_print.c	/^  int score[2];$/;"	m	struct:__anon783f70d70108	typeref:typename:int[2]	file:
+score_printer	phymem_fragmenter.c	/^void score_printer(void)$/;"	f	typeref:typename:void
+score_printer	phymem_fragmenter_score_print.c	/^int score_printer(void * arg)$/;"	f	typeref:typename:int
+task	phymem_fragmenter_score_print.c	/^static struct task_struct * task=NULL;$/;"	v	typeref:struct:task_struct *	file:
+total_node	phymem_fragmenter.c	/^  int total_node;$/;"	m	struct:__anon4b9ca1300108	typeref:typename:int	file:
+total_node	phymem_fragmenter_score_print.c	/^  int total_node;$/;"	m	struct:__anon783f70d70108	typeref:typename:int	file:
