@@ -8,3 +8,4 @@ modules*
 .mod*
 *.o*
 Module*
+tags
