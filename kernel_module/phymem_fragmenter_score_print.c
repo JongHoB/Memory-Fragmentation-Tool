@@ -29,17 +29,7 @@
 #define MAX_ORDER CONFIG_FORCE_MAX_ZONEORDER
 #endif
 
-static int order;
-static int compaction_score;
 static struct task_struct *task = NULL;
-
-module_param(order, int, 0);
-MODULE_PARM_DESC(order, "Order of the page to allocate and fragment");
-
-module_param(compaction_score, int, 0);
-MODULE_PARM_DESC(compaction_score, "Compaction score to stop the Fragmenter");
-
-LIST_HEAD(fragment_list);
 
 struct contig_page_info
 {
@@ -189,104 +179,11 @@ int score_printer(void *arg)
   return 0;
 }
 
-int create_fragments(void)
-{
-  compaction_score_t score;
-  struct sysinfo si;
-  struct page *page;
-  int next;
-  int i;
-
-  // set the start time
-  unsigned long start_time = jiffies;
-
-  i = 0;
-  score = get_compaction_score();
-  while (i < score.total_node)
-  {
-    printk(KERN_INFO "Initial Compaction Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
-    i++;
-  }
-
-  // Allocate pages and split them
-  // Maximum allocation would be 80% of the total memory
-  while ((page = alloc_pages_node(0, GFP_KERNEL | __GFP_MOVABLE, order)))
-  {
-    // check the memory usage
-    // if the memory usage is over 80%, then stop the fragmenter
-    si_meminfo(&si);
-    if (si.freeram * 100 / si.totalram < 20)
-    {
-      printk(KERN_INFO "Memory usage is over 80%%, so stop the Fragmenter\n");
-      return 0;
-    }
-    split_page(page, order);
-    list_add(&page->lru, &fragment_list);
-    for (next = 1; next < (1 << order); next++)
-    {
-      __free_page(page + next);
-    }
-
-    // Check the compaction score of the system
-    // get_compaction_score() is run every 500ms from the start time
-    // If the compaction score is higher than the compaction score parameter,
-    // then stop the fragmenter
-    if (compaction_score > 0 && compaction_score < 100)
-    {
-      if ((jiffies - start_time) * 1000 / HZ >= 500)
-      {
-        score = get_compaction_score();
-
-        i = 0;
-        while (i < score.total_node)
-        {
-          printk(KERN_INFO "STATUS: Compaction Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
-          // if (score.score[i] >= compaction_score)
-          // {
-          //   printk(KERN_INFO "Compaction Score is larger than %d, so stop the Fragmenter\n", compaction_score);
-          //   score_printer();
-          // }
-          i++;
-        }
-        start_time = jiffies;
-      }
-    }
-  }
-  return 0;
-}
-
 int fragmenter_init(void)
 {
-  if (order < 0 || order > 11)
-  {
-    printk(KERN_INFO "Invalid order value\n");
-    return -1;
-  }
-  if (compaction_score < 0 || compaction_score > 100)
-  {
-    printk(KERN_INFO "Invalid compaction score value\n");
-    return -1;
-  }
-  if (order != 0)
-  {
 
-    printk(KERN_INFO "Starting fragmenter\n");
-    create_fragments();
-  }
-  else
-  {
-    task = kthread_run(score_printer, NULL, "score_printer kthread run");
-  }
-  return 0;
-}
+  task = kthread_run(score_printer, NULL, "score_printer kthread run");
 
-int release_fragments(void)
-{
-  struct page *page, *next;
-  list_for_each_entry_safe(page, next, &fragment_list, lru)
-  {
-    __free_page(page);
-  }
   return 0;
 }
 
@@ -300,11 +197,10 @@ void fragmenter_exit(void)
   }
   printk(KERN_INFO "Released score_printer()\n");
 }
-
-module_init(fragmenter_init);
+2 module_init(fragmenter_init);
 module_exit(fragmenter_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION(
-    "Physical Memory Fragmenter, exhausts contiguous physical memory (from a particular order)");
+    "Physical Memory Fragmenter Score Printer, exhausts contiguous physical memory (from a particular order)");
 MODULE_AUTHOR("Jongho Baik");
