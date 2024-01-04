@@ -1,4 +1,4 @@
-// This code is from saravan2/phymem_fragmenter
+// Reference Code is from saravan2/phymem_fragmenter
 // Modified by Jongho Baik
 
 #include <linux/init.h>
@@ -30,13 +30,13 @@
 #endif
 
 static int order;
-static int compaction_score;
+static int fragmentation_score;
 
 module_param(order, int, 0);
 MODULE_PARM_DESC(order, "Order of the page to allocate and fragment");
 
-module_param(compaction_score, int, 0);
-MODULE_PARM_DESC(compaction_score, "Compaction score to stop the Fragmenter");
+module_param(fragmentation_score, int, 0);
+MODULE_PARM_DESC(fragmentation_score, "Fragmentation score to stop the Fragmenter");
 
 LIST_HEAD(fragment_list);
 
@@ -52,10 +52,10 @@ typedef struct
   int score[2];
   int node[2];
   int total_node;
-} compaction_score_t;
+} fragmentation_score_t;
 
-// Caculate the Compaction Score of the system
-// Compaction Score is used by Proactive Compaction
+// Caculate the Fragmentation Score of the system
+// Fragmentation Score is used by Proactive Compaction
 // to determine whether to compact or not
 // The Linux kernel divides a node’s memory into
 // “zones”, typically ZONE_DMA32, ZONE_DMA, and ZONE_NORMAL,
@@ -144,14 +144,14 @@ static unsigned int fragmentation_score_node(pg_data_t *pgdat)
   return score;
 }
 
-compaction_score_t get_compaction_score(void)
+fragmentation_score_t get_fragmentation_score(void)
 {
   // Get the number of nodes in the system
   int i = 0;
   int total_node = nr_node_ids;
-  compaction_score_t score;
+  fragmentation_score_t score;
   score.total_node = total_node;
-  // Get the compaction score of each node
+  // Get the Fragmentation Score of each node
   while (i < total_node)
   {
     pg_data_t *pgdat = NODE_DATA(i);
@@ -164,19 +164,19 @@ compaction_score_t get_compaction_score(void)
 
 void score_printer(void)
 {
-  compaction_score_t score;
+  fragmentation_score_t score;
   int i = 0;
   // unsigned long start_time = jiffies;
 
-  // Print the compaction score of the system every 5000ms
+  // Print the Fragmentation Score of the system every 5000ms
   while (1)
   {
     msleep_interruptible(500);
-    score = get_compaction_score();
+    score = get_fragmentation_score();
     i = 0;
     while (i < score.total_node)
     {
-      printk(KERN_INFO "STATUS - Compaction Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
+      printk(KERN_INFO "STATUS - Fragmentation Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
       i++;
     }
   }
@@ -184,7 +184,7 @@ void score_printer(void)
 
 int create_fragments(void *arg)
 {
-  compaction_score_t score;
+  fragmentation_score_t score;
   struct sysinfo si;
   struct page *page;
   int next;
@@ -194,10 +194,10 @@ int create_fragments(void *arg)
   unsigned long start_time = jiffies;
 
   i = 0;
-  score = get_compaction_score();
+  score = get_fragmentation_score();
   while (i < score.total_node)
   {
-    printk(KERN_INFO "Initial Compaction Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
+    printk(KERN_INFO "Initial Fragmentation Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
     i++;
   }
 
@@ -209,11 +209,11 @@ int create_fragments(void *arg)
     // It would act as an userspace application
     // For Memory Compaction.
 
-    page = alloc_pages_node(0, __GFP_RECLAIM | __GFP_MOVABLE | __GFP_SKIP_KASAN_POISON | __GFP_NOWARN, order);
+    page = alloc_pages_node(0, GFP_USER | __GFP_MOVABLE | __GFP_SKIP_KASAN_POISON | __GFP_NOWARN, order);
     if (!page)
     {
       printk(KERN_INFO "Failed to allocate pages\n");
-      return 0;
+      continue;
     }
     // check the memory usage
     // if the memory usage is over 80%, then stop the fragmenter
@@ -230,22 +230,22 @@ int create_fragments(void *arg)
       __free_page(page + next);
     }
 
-    // Check the compaction score of the system
-    // get_compaction_score() is run every 500ms from the start time
-    // If the compaction score is higher than the compaction score parameter,
+    // Check the Fragmentation Score of the system
+    // get_fragmentation_score() is run every 500ms from the start time
+    // If the Fragmentation Score is higher than the Fragmentation Score parameter,
     // then stop the fragmenter
-    if (compaction_score > 0 && compaction_score < 100)
+    if (fragmentation_score > 0 && fragmentation_score < 100)
     {
       if ((jiffies - start_time) * 1000 / HZ >= 500)
       {
-        score = get_compaction_score();
+        score = get_fragmentation_score();
 
         i = 0;
         while (i < score.total_node)
         {
-          if (score.score[i] >= compaction_score)
+          if (score.score[i] >= fragmentation_score)
           {
-            printk(KERN_INFO "Compaction Score is larger than %d, so stop the Fragmenter\n", compaction_score);
+            printk(KERN_INFO "Fragmentation Score is larger than %d, so stop the Fragmenter\n", fragmentation_score);
             return 0;
           }
           i++;
@@ -264,9 +264,9 @@ int fragmenter_init(void)
     printk(KERN_INFO "Invalid order value\n");
     return -1;
   }
-  if (compaction_score < 0 || compaction_score > 100)
+  if (fragmentation_score < 0 || fragmentation_score > 100)
   {
-    printk(KERN_INFO "Invalid compaction score value\n");
+    printk(KERN_INFO "Invalid Fragmentation Score value\n");
     return -1;
   }
   if (order != 0)

@@ -1,4 +1,4 @@
-// This code is from saravan2/phymem_fragmenter
+// Reference Code is from saravan2/phymem_fragmenter
 // Modified by Jongho Baik
 
 #include <linux/init.h>
@@ -43,10 +43,10 @@ typedef struct
   int score[2];
   int node[2];
   int total_node;
-} compaction_score_t;
+} fragmentation_score_t;
 
-// Caculate the Compaction Score of the system
-// Compaction Score is used by Proactive Compaction
+// Caculate the Fragmentation Score of the system
+// Fragmentation Score is used by Proactive Compaction
 // to determine whether to compact or not
 // The Linux kernel divides a node’s memory into
 // “zones”, typically ZONE_DMA32, ZONE_DMA, and ZONE_NORMAL,
@@ -135,14 +135,14 @@ static unsigned int fragmentation_score_node(pg_data_t *pgdat)
   return score;
 }
 
-compaction_score_t get_compaction_score(void)
+fragmentation_score_t get_fragmentation_score(void)
 {
   // Get the number of nodes in the system
   int i = 0;
   int total_node = nr_node_ids;
-  compaction_score_t score;
+  fragmentation_score_t score;
   score.total_node = total_node;
-  // Get the compaction score of each node
+  // Get the Fragmentation Score of each node
   while (i < total_node)
   {
     pg_data_t *pgdat = NODE_DATA(i);
@@ -155,11 +155,11 @@ compaction_score_t get_compaction_score(void)
 
 int score_printer(void *arg)
 {
-  compaction_score_t score;
+  fragmentation_score_t score;
   int i = 0;
   // unsigned long start_time = jiffies;
 
-  // Print the compaction score of the system every 5000ms
+  // Print the Fragmentation Score of the system every 5000ms
   allow_signal(SIGUSR1);
   while (1)
   {
@@ -168,11 +168,11 @@ int score_printer(void *arg)
     {
       break;
     }
-    score = get_compaction_score();
+    score = get_fragmentation_score();
     i = 0;
     while (i < score.total_node)
     {
-      printk(KERN_INFO "STATUS - Compaction Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
+      printk(KERN_INFO "STATUS - Fragmentation Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
       i++;
     }
   }
@@ -197,7 +197,7 @@ void fragmenter_exit(void)
   }
   printk(KERN_INFO "Released score_printer()\n");
 }
-2 module_init(fragmenter_init);
+module_init(fragmenter_init);
 module_exit(fragmenter_exit);
 
 MODULE_LICENSE("GPL");
