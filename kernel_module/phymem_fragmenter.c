@@ -209,7 +209,7 @@ int create_fragments(void *arg)
     // It would act as an userspace application
     // For Memory Compaction.
 
-    page = alloc_pages_node(0, GFP_USER | __GFP_MOVABLE | __GFP_SKIP_KASAN_POISON | __GFP_NOWARN, order);
+    page = alloc_pages_node(0,__GFP_MOVABLE |__GFP_SKIP_KASAN_UNPOISON |__GFP_SKIP_ZERO| __GFP_SKIP_KASAN_POISON | __GFP_NOWARN , order);
     if (!page)
     {
       printk(KERN_INFO "Failed to allocate pages\n");
