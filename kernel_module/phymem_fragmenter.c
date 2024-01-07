@@ -189,11 +189,13 @@ int create_fragments(void *arg)
   struct page *page;
   int next;
   int i;
+  int count;
 
   // set the start time
   unsigned long start_time = jiffies;
 
   i = 0;
+  count = 0;
   score = get_fragmentation_score();
   while (i < score.total_node)
   {
@@ -209,12 +211,20 @@ int create_fragments(void *arg)
     // It would act as an userspace application
     // For Memory Compaction.
 
-    page = alloc_pages_node(0,GFP_HIGHUSER_MOVABLE | __GFP_NOWARN, order);
+    page = alloc_pages_node(0, GFP_HIGHUSER_MOVABLE | __GFP_NOWARN, order);
     if (!page)
     {
       printk(KERN_INFO "Failed to allocate pages\n");
+      count++;
+      if (count > 10)
+      {
+        printk(KERN_INFO "Failed to allocate pages 10 times, so stop the Fragmenter\n");
+        return 0;
+      }
       continue;
     }
+    count = 0;
+
     // check the memory usage
     // if the memory usage is over 80%, then stop the fragmenter
     si_meminfo(&si);
