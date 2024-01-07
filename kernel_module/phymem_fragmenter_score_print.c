@@ -125,11 +125,14 @@ static unsigned int fragmentation_score_node(pg_data_t *pgdat)
   for (zoneid = 0; zoneid < MAX_NR_ZONES; zoneid++)
   {
     struct zone *zone;
+    int zone_score;
 
     zone = &pgdat->node_zones[zoneid];
     if (!populated_zone(zone))
       continue;
-    score += fragmentation_score_zone_weighted(zone);
+    zone_score=fragmentation_score_zone_weighted(zone);
+    score += zone_score;
+    printk(KERN_INFO "zoneid: %d , zone_score: %d",zoneid,zone_score); 
   }
 
   return score;
