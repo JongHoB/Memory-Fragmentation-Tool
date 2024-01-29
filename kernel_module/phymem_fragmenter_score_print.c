@@ -24,7 +24,7 @@
 #endif
 
 #ifndef CONFIG_FORCE_MAX_ZONEORDER
-#define MAX_ORDER 11
+#define MAX_ORDER 10
 #else
 #define MAX_ORDER CONFIG_FORCE_MAX_ZONEORDER
 #endif
@@ -68,7 +68,7 @@ static void fill_contig_page_info(struct zone *zone,
   info->free_blocks_total = 0;
   info->free_blocks_suitable = 0;
 
-  for (order = 0; order < MAX_ORDER; order++)
+  for (order = 0; order <= MAX_ORDER; order++)
   {
     unsigned long blocks;
 
