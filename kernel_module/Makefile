@@ -1,5 +1,5 @@
 	
-obj-m += phymem_fragmenter.o phymem_fragmenter_score_print.o phymem_fragmenter_score_print_for_server.o 
+obj-m += phymem_fragmenter.o phymem_fragmenter_score_print.o 
 DEBUG_CFLAGS += -g
 ccflags-y += ${DBUG_CFLAGS}
 CC += ${DEBUG_CFLAGS}
