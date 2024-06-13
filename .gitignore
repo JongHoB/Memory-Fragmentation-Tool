@@ -1,0 +1,11 @@
+fragm
+*.c.o
+.Module.*
+.modules.*
+*.ko*
+*.mod*
+modules*
+.mod*
+*.o*
+Module*
+tags
