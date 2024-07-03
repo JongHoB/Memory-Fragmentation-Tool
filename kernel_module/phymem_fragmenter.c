@@ -28,6 +28,7 @@
 
 static int order;
 static int fragmentation_score;
+static long nr_allocated_pages;  
 
 module_param(order, int, 0);
 MODULE_PARM_DESC(order, "Order of the page to allocate and fragment");
@@ -50,6 +51,14 @@ typedef struct
   int node[2];
   int total_node;
 } fragmentation_score_t;
+
+unsigned int extfrag_for_order(struct zone *zone, unsigned int order);
+void score_printer(void);
+int create_fragments(void *arg);
+int fragmenter_init(void);
+int release_fragments(void);
+void fragmenter_exit(void);
+fragmentation_score_t get_fragmentation_score(void);
 
 // Caculate the Fragmentation Score of the system
 // Fragmentation Score is used by Proactive Compaction
@@ -194,6 +203,7 @@ int create_fragments(void *arg)
   i = 0;
   count = 0;
   score = get_fragmentation_score();
+  nr_allocated_pages=0; 
   while (i < score.total_node)
   {
     printk(KERN_INFO "Initial Fragmentation Score: %d Node : %d in Kernel", score.score[i], score.node[i]);
@@ -221,6 +231,13 @@ int create_fragments(void *arg)
       continue;
     }
     count = 0;
+    nr_allocated_pages+= 1<<order;
+
+    for (int i=0; i < (1<<order)*PAGE_SIZE;i+=PAGE_SIZE)
+    {
+       sprintf(page_to_virt(page)+i,"alloc_pages %ld", i / PAGE_SIZE);
+       memset(page_to_virt(page)+i+strlen(page_to_virt(page)+i) +1,'0', PAGE_SIZE - strlen(page_to_virt(page)+i)-1);
+    }
 
     // check the memory usage
     // if the memory usage is over 80%, then stop the fragmenter
@@ -252,7 +269,8 @@ int create_fragments(void *arg)
         {
           if (score.score[i] >= fragmentation_score)
           {
-            printk(KERN_INFO "Fragmentation Score is larger than %d, so stop the Fragmenter\n", fragmentation_score);
+            printk(KERN_INFO "Fragmentation Score:%d - larger than %d, so stop the Fragmenter\n",score.score[i], fragmentation_score);
+            printk(KERN_INFO "Allocating %ld pages", nr_allocated_pages);
             return 0;
           }
           i++;

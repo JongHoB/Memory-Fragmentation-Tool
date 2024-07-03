@@ -42,6 +42,11 @@ typedef struct
   int total_node;
 } fragmentation_score_t;
 
+unsigned int extfrag_for_order(struct zone *zone, unsigned int order);
+int score_printer(void *arg);
+int fragmenter_init(void);
+void fragmenter_exit(void);
+fragmentation_score_t get_fragmentation_score(void);
 // Caculate the Fragmentation Score of the system
 // Fragmentation Score is used by Proactive Compaction
 // to determine whether to compact or not
