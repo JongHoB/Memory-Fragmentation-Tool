@@ -15,6 +15,7 @@
 #include <linux/signal.h>
 #include <linux/sched/signal.h>
 
+
 #if defined CONFIG_TRANSPARENT_HUGEPAGE
 #define COMPACTION_HPAGE_ORDER HPAGE_PMD_ORDER
 #elif defined CONFIG_HUGETLBFS
@@ -44,6 +45,12 @@ typedef struct
   int node[2];
   int total_node;
 } fragmentation_score_t;
+
+unsigned int extfrag_for_order(struct zone *zone, unsigned int order);
+int score_printer(void *arg);
+int fragmenter_init(void);
+void fragmenter_exit(void);
+fragmentation_score_t get_fragmentation_score(void);
 
 // Caculate the Fragmentation Score of the system
 // Fragmentation Score is used by Proactive Compaction

@@ -63,7 +63,6 @@ int release_fragments(void);
 void fragmenter_exit(void);
 fragmentation_score_t get_fragmentation_score(void);
 
-
 static inline bool page_expected_state(struct page *page,
 					unsigned long check_flags)
 {
@@ -218,10 +217,9 @@ int create_fragments(void *arg)
   fragmentation_score_t score;
   struct sysinfo si;
   struct page *page;
-  int next;
+
   int i;
   int count;
-  long nr_while=0;
 
   // set the start time
   unsigned long start_time = jiffies;
@@ -244,7 +242,7 @@ int create_fragments(void *arg)
     // It would act as an userspace application
     // For Memory Compaction.
 
-    page = alloc_pages_node(0, GFP_HIGHUSER_MOVABLE | __GFP_NOWARN, order);
+    page = alloc_pages_node(0, GFP_USER |__GFP_MOVABLE | __GFP_NOWARN, order);
     if (!page)
     {
       printk(KERN_INFO "Failed to allocate pages\n");
@@ -255,8 +253,8 @@ int create_fragments(void *arg)
         return 0;
       }
       continue;
-    } 
-//    SetPageLRU(page); 
+    }
+    SetPageLRU(page); 
     count = 0;
     nr_allocated_pages+= 1<<order;
 
@@ -266,39 +264,35 @@ int create_fragments(void *arg)
 	memset(page_to_virt(page)+i+strlen(page_to_virt(page)+i) +1,'0', PAGE_SIZE - strlen(page_to_virt(page)+i)-1);
     }
 
+    
+    split_page(page, order);
+    for(int i=0; i < (1<< order); i++)
+    {
+	SetPageReserved((page+i));
+	list_add(&(page+i)->lru, &fragment_list);
+    }
+
     // check the memory usage
     // if the memory usage is over 80%, then stop the fragmenter
     si_meminfo(&si);
-    if (si.freeram * 100 / si.totalram < 20)
+    if (si.freeram * 100 / si.totalram < 75)
     {
-      printk(KERN_INFO "Memory usage is over 80%%, so stop the Fragmenter\n");
-      return 0;
+      printk(KERN_INFO "Memory usage is over, so stop the Fragmenter\n");
+      break;
     }
+}
+ struct page *pg, *next;
+ list_for_each_entry_safe(pg,next, &fragment_list, lru){
 
-    split_page(page, order);
-    for(int i=0 ; i < (1<<order); i++)
-    {
-	list_add(&(page+i)->lru, &fragment_list);
-    }
-    if(nr_while++%2){
-	for(int i= 0 ; i < 128 ; i++)
-	{
-		struct page *tmp;
-		tmp = alloc_pages_node(0,GFP_HIGHUSER_MOVABLE | __GFP_NOWARN, 0);
-        	sprintf(page_to_virt(tmp),"alloc_pages %ld", (long)i);	
-		list_add(&tmp->lru, &fragment_list);
-		nr_allocated_pages++;
-    	
-	}
-	//goto frag;
-    }
-    for (next = 1 ; next < (1 << order); next+=2)
-    {	
-      list_del(&(page+next)->lru);
-      __free_page(page + next);
-      nr_allocated_pages-=1;
-    }
-//frag:
+      if(nr_allocated_pages%2)
+		continue;
+      list_del(&pg->lru);
+      ClearPageReserved(pg);
+//      if(page_expected_state(pg, PAGE_FLAGS_CHECK_AT_FREE)){
+	__free_page(pg);
+        nr_allocated_pages-=1;
+//      }
+
     // Check the Fragmentation Score of the system
     // get_fragmentation_score() is run every 500ms from the start time
     // If the Fragmentation Score is higher than the Fragmentation Score parameter,
@@ -315,7 +309,7 @@ int create_fragments(void *arg)
           if (score.score[i] >= fragmentation_score)
           {
             printk(KERN_INFO "Fragmentation Score:%d - larger than %d, so stop the Fragmenter\n",score.score[i], fragmentation_score);
-	    printk(KERN_INFO "Allocating %ld pages, nr_while : %ld\n", nr_allocated_pages,nr_while);
+	    printk(KERN_INFO "Allocating %ld pages", nr_allocated_pages);
             return 0;
           }
           i++;
@@ -339,7 +333,7 @@ int fragmenter_init(void)
     printk(KERN_INFO "Invalid Fragmentation Score value\n");
     return -1;
   }
-  if (order >= 0)
+  if (order != 0)
   {
 
     printk(KERN_INFO "Starting fragmenter\n");
@@ -355,16 +349,15 @@ int fragmenter_init(void)
 int release_fragments(void)
 {
   struct page *page, *next;
-  long nr=0;
   list_for_each_entry_safe(page, next, &fragment_list, lru)
   {
     list_del(&page->lru);
-//    if(!page_expected_state(page, PAGE_FLAGS_CHECK_AT_FREE))
-//	continue;
-    __free_page(page);
-    nr++;
+//    if(page_expected_state(page, PAGE_FLAGS_CHECK_AT_FREE))
+//    {
+	ClearPageReserved(page);
+	 __free_page(page);
+  //  }
   }
-  pr_info("FREE %ld pages\n",nr);
   return 0;
 }
 
