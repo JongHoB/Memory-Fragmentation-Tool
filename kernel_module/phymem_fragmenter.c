@@ -246,7 +246,7 @@ int create_fragments(void *arg)
       }
       continue;
     } 
-    SetPageLRU(page); 
+//    SetPageLRU(page); 
     count = 0;
     nr_allocated_pages+= 1<<order;
 
@@ -281,14 +281,14 @@ int create_fragments(void *arg)
 		page_ref_sub(page+next,1);
 //	else
 //		pr_info("ref count %d",page_count(page+next));
-	if(next<5){
+	if(!((next/4)%2)){
 		nr_while++;
-		SetPageLRU(page+next);
+//		SetPageLRU(page+next);
 //		add_to_page_cache_lru(page+next, page_mapping(page+next),next,GFP_HIGHUSER_MOVABLE);
 
 		folio_add_lru(page_folio((page+next)));
 		folio_mark_accessed(page_folio((page+next)));
-		void *addr = kmalloc(PAGE_SIZE, GFP_USER | __GFP_MOVABLE);
+//		void *addr = kmalloc(PAGE_SIZE, GFP_USER | __GFP_MOVABLE);
 		page_list *pg = kmalloc(sizeof(page_list),GFP_USER | __GFP_MOVABLE);
 		pg->page = (page+next);
 		list_add_tail(&pg->lru,&fragment_list);
@@ -363,13 +363,16 @@ int release_fragments(void)
   long nr=0;
   list_for_each_entry_safe(page, next, &fragment_list, lru)
   {
-	init_page_count(page->page);
-	if(page_count(page->page) != 1) 
+	set_page_count(page->page,2);
+	if(page_count(page->page) != 2) 
 		pr_info("ref count %d",page_count(page->page));
+	
+	list_del(&page_folio(page->page)->lru);
+//	folio_put(page_folio(page->page));
 //	clear_page_dirty_for_io(page);
 //	end_page_writeback(page);
    list_del(&page->lru);
-//    __free_page(page->page);
+    __free_page(page->page);
     nr++;
    kfree(page);
   }
