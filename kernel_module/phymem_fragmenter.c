@@ -68,6 +68,12 @@ typedef struct
 	struct list_head lru;
 } page_list;
 
+typedef struct
+{
+	void *addr;
+	struct list_head lru;
+} addr_list;
+
 unsigned int extfrag_for_order(struct zone *zone, unsigned int order);
 void score_printer(void);
 int create_fragments(void *arg);
@@ -210,12 +216,22 @@ int alloc_mem(void)
 {
 	struct sysinfo si;
 	long pages=0;
+	int count = 0;
+	
 	while(1)
 	{
-		struct page *page = alloc_pages_node(0, GFP_USER | __GFP_MOVABLE | __GFP_NOWARN, order);
-		pages += 1<<order;
+		int alc = order-1;
+		if(!(count%2)){
+			alc = order;
+			count= ~count;
+		}
+		//struct page *page = alloc_pages_node(0, GFP_KERNEL | __GFP_MOVABLE | __GFP_NOWARN, order);
+		void *ptr = kzalloc(PAGE_SIZE*(1<<alc), GFP_KERNEL | __GFP_MOVABLE);	
+		addr_list *tp = kmalloc(sizeof(addr_list), GFP_KERNEL | __GFP_MOVABLE);
+		tp->addr = ptr;
+		pages += (1<<alc);
 		si_meminfo(&si);
-		list_add_tail(&page->lru, &alloc);
+		list_add_tail(&tp->lru, &alloc);
 		
 		if(si.freeram*100/si.totalram <76)
 		{
@@ -256,7 +272,7 @@ int create_fragments(void *arg)
     // It would act as an userspace application
     // For Memory Compaction.
 
-    page = alloc_pages_node(0, GFP_USER |__GFP_MOVABLE | __GFP_NOWARN, order);
+    page = alloc_pages_node(0, GFP_KERNEL |__GFP_MOVABLE | __GFP_NOWARN, order);
     if (!page)
     {
       printk(KERN_INFO "Failed to allocate pages\n");
@@ -303,7 +319,7 @@ int create_fragments(void *arg)
 		page_ref_sub(page+next,1);
 //	else
 //		pr_info("ref count %d",page_count(page+next));
-	if(!((next/4)%2)){
+	if(next < 4){
 		nr_while++;
 //		SetPageLRU(page+next);
 //		add_to_page_cache_lru(page+next, page_mapping(page+next),next,GFP_HIGHUSER_MOVABLE);
@@ -311,7 +327,7 @@ int create_fragments(void *arg)
 		folio_add_lru(page_folio((page+next)));
 		folio_mark_accessed(page_folio((page+next)));
 //		void *addr = kmalloc(PAGE_SIZE, GFP_USER | __GFP_MOVABLE);
-		page_list *pg = kmalloc(sizeof(page_list),GFP_USER | __GFP_MOVABLE);
+		page_list *pg = kmalloc(sizeof(page_list),GFP_KERNEL | __GFP_MOVABLE);
 		pg->page = (page+next);
 		list_add_tail(&pg->lru,&fragment_list);
 
@@ -405,11 +421,13 @@ int release_fragments(void)
 
 int release_alloc(void)
 {
-	struct page *page, *next;
+//	struct page *page, *next;
+	addr_list *page,*next;
 	list_for_each_entry_safe(page, next, &alloc, lru)
 	{
 		list_del(&page->lru);
-		__free_page(page);
+//		__free_page(page);
+		kfree(page->addr);
 	}
 	return 0;
 }
