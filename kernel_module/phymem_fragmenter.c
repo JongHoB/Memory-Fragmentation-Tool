@@ -46,6 +46,7 @@ module_param(fragmentation_score, int, 0);
 MODULE_PARM_DESC(fragmentation_score, "Fragmentation score to stop the Fragmenter");
 
 LIST_HEAD(fragment_list);
+LIST_HEAD(alloc);
 
 struct contig_page_info
 {
@@ -72,7 +73,9 @@ void score_printer(void);
 int create_fragments(void *arg);
 int fragmenter_init(void);
 int release_fragments(void);
+int alloc_mem(void);
 void fragmenter_exit(void);
+int release_alloc(void);
 fragmentation_score_t get_fragmentation_score(void);
 
 // Caculate the Fragmentation Score of the system
@@ -203,6 +206,25 @@ void score_printer(void)
   }
 }
 
+int alloc_mem(void)
+{
+	struct sysinfo si;
+	long pages=0;
+	while(1)
+	{
+		struct page *page = alloc_pages_node(0, GFP_USER | __GFP_MOVABLE | __GFP_NOWARN, order);
+		pages += 1<<order;
+		si_meminfo(&si);
+		list_add_tail(&page->lru, &alloc);
+		
+		if(si.freeram*100/si.totalram <76)
+		{
+			pr_info("alloc %ld pages",pages);
+			break;
+		}
+	}
+	return 0;
+}
 int create_fragments(void *arg)
 {
   fragmentation_score_t score;
@@ -234,7 +256,7 @@ int create_fragments(void *arg)
     // It would act as an userspace application
     // For Memory Compaction.
 
-    page = alloc_pages_node(0, GFP_KERNEL|__GFP_MOVABLE | __GFP_NOWARN, order);
+    page = alloc_pages_node(0, GFP_USER |__GFP_MOVABLE | __GFP_NOWARN, order);
     if (!page)
     {
       printk(KERN_INFO "Failed to allocate pages\n");
@@ -347,6 +369,7 @@ int fragmenter_init(void)
   {
 
     printk(KERN_INFO "Starting fragmenter\n");
+	alloc_mem();
     create_fragments(NULL);
   }
   else
@@ -380,9 +403,21 @@ int release_fragments(void)
   return 0;
 }
 
+int release_alloc(void)
+{
+	struct page *page, *next;
+	list_for_each_entry_safe(page, next, &alloc, lru)
+	{
+		list_del(&page->lru);
+		__free_page(page);
+	}
+	return 0;
+}
+
 void fragmenter_exit(void)
 {
   printk(KERN_INFO "Releasing all fragments\n");
+	release_alloc();
   release_fragments();
   printk(KERN_INFO "Released all fragments\n");
 }
