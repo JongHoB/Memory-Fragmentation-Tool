@@ -14,6 +14,12 @@
 #include <linux/kthread.h>
 #include <linux/signal.h>
 #include <linux/sched/signal.h>
+#include <linux/swap.h>
+#include <linux/page_ref.h>
+#include <linux/memcontrol.h>
+#include <linux/mm_inline.h>
+#include <linux/mmzone.h>
+
 
 #if defined CONFIG_TRANSPARENT_HUGEPAGE
 #define COMPACTION_HPAGE_ORDER HPAGE_PMD_ORDER
@@ -55,6 +61,12 @@ typedef struct
   int total_node;
 } fragmentation_score_t;
 
+typedef struct
+{
+	struct page *page;
+	struct list_head lru;
+} page_list;
+
 unsigned int extfrag_for_order(struct zone *zone, unsigned int order);
 void score_printer(void);
 int create_fragments(void *arg);
@@ -62,28 +74,6 @@ int fragmenter_init(void);
 int release_fragments(void);
 void fragmenter_exit(void);
 fragmentation_score_t get_fragmentation_score(void);
-
-
-static inline bool page_expected_state(struct page *page,
-					unsigned long check_flags)
-{
-	if (unlikely(atomic_read(&page->_mapcount) != -1))
-		return false;
-
-	if (unlikely((unsigned long)page->mapping |
-			page_ref_count(page) |
-#ifdef CONFIG_MEMCG
-			page->memcg_data |
-#endif
-#ifdef CONFIG_PAGE_POOL
-			((page->pp_magic & ~0x3UL) == PP_SIGNATURE) |
-#endif
-			(page->flags & check_flags)))
-		return false;
-
-	return true;
-}
-
 
 // Caculate the Fragmentation Score of the system
 // Fragmentation Score is used by Proactive Compaction
@@ -244,7 +234,7 @@ int create_fragments(void *arg)
     // It would act as an userspace application
     // For Memory Compaction.
 
-    page = alloc_pages_node(0, GFP_HIGHUSER_MOVABLE | __GFP_NOWARN, order);
+    page = alloc_pages_node(0, GFP_KERNEL|__GFP_MOVABLE | __GFP_NOWARN, order);
     if (!page)
     {
       printk(KERN_INFO "Failed to allocate pages\n");
@@ -256,15 +246,17 @@ int create_fragments(void *arg)
       }
       continue;
     } 
-//    SetPageLRU(page); 
+    SetPageLRU(page); 
     count = 0;
     nr_allocated_pages+= 1<<order;
+
 
     for (int i=0; i < (1<<order)*PAGE_SIZE;i+=PAGE_SIZE)
     {
 	sprintf(page_to_virt(page)+i,"alloc_pages %ld", i / PAGE_SIZE);
 	memset(page_to_virt(page)+i+strlen(page_to_virt(page)+i) +1,'0', PAGE_SIZE - strlen(page_to_virt(page)+i)-1);
     }
+
 
     // check the memory usage
     // if the memory usage is over 80%, then stop the fragmenter
@@ -275,30 +267,42 @@ int create_fragments(void *arg)
       return 0;
     }
 
+
+
     split_page(page, order);
-    for(int i=0 ; i < (1<<order); i++)
-    {
-	list_add(&(page+i)->lru, &fragment_list);
-    }
-    if(nr_while++%2){
-	for(int i= 0 ; i < 128 ; i++)
-	{
-		struct page *tmp;
-		tmp = alloc_pages_node(0,GFP_HIGHUSER_MOVABLE | __GFP_NOWARN, 0);
-        	sprintf(page_to_virt(tmp),"alloc_pages %ld", (long)i);	
-		list_add(&tmp->lru, &fragment_list);
-		nr_allocated_pages++;
-    	
-	}
-	//goto frag;
-    }
-    for (next = 1 ; next < (1 << order); next+=2)
+ 
+    for (next = 0 ; next < (1 << order); next++)
     {	
-      list_del(&(page+next)->lru);
-      __free_page(page + next);
-      nr_allocated_pages-=1;
+
+
+//	pr_info("ref count %d",page_count(page+next));
+//	list_add(&(page+next)->lru, &fragment_list);
+	if(page_count(page+next)==2)
+		page_ref_sub(page+next,1);
+//	else
+//		pr_info("ref count %d",page_count(page+next));
+	if(next<5){
+		nr_while++;
+		SetPageLRU(page+next);
+//		add_to_page_cache_lru(page+next, page_mapping(page+next),next,GFP_HIGHUSER_MOVABLE);
+
+		folio_add_lru(page_folio((page+next)));
+		folio_mark_accessed(page_folio((page+next)));
+		void *addr = kmalloc(PAGE_SIZE, GFP_USER | __GFP_MOVABLE);
+		page_list *pg = kmalloc(sizeof(page_list),GFP_USER | __GFP_MOVABLE);
+		pg->page = (page+next);
+		list_add_tail(&pg->lru,&fragment_list);
+
+		continue;
+	}
+
+//     	list_del(&(page+next)->lru);
+
+     	__free_page(page + next);
+      	nr_allocated_pages-=1;
     }
-//frag:
+
+
     // Check the Fragmentation Score of the system
     // get_fragmentation_score() is run every 500ms from the start time
     // If the Fragmentation Score is higher than the Fragmentation Score parameter,
@@ -315,7 +319,7 @@ int create_fragments(void *arg)
           if (score.score[i] >= fragmentation_score)
           {
             printk(KERN_INFO "Fragmentation Score:%d - larger than %d, so stop the Fragmenter\n",score.score[i], fragmentation_score);
-	    printk(KERN_INFO "Allocating %ld pages, nr_while : %ld\n", nr_allocated_pages,nr_while);
+	    printk(KERN_INFO "Allocating %ld pages, nr_while : %ld size of page %zu size of page_list %zu\n", nr_allocated_pages,nr_while, sizeof(struct page), sizeof(page_list));
             return 0;
           }
           i++;
@@ -354,15 +358,20 @@ int fragmenter_init(void)
 
 int release_fragments(void)
 {
-  struct page *page, *next;
+  page_list *page, *next;
+//  struct page *page, *next;
   long nr=0;
   list_for_each_entry_safe(page, next, &fragment_list, lru)
   {
-    list_del(&page->lru);
-//    if(!page_expected_state(page, PAGE_FLAGS_CHECK_AT_FREE))
-//	continue;
-    __free_page(page);
+	init_page_count(page->page);
+	if(page_count(page->page) != 1) 
+		pr_info("ref count %d",page_count(page->page));
+//	clear_page_dirty_for_io(page);
+//	end_page_writeback(page);
+   list_del(&page->lru);
+//    __free_page(page->page);
     nr++;
+   kfree(page);
   }
   pr_info("FREE %ld pages\n",nr);
   return 0;
